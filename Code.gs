@@ -1,17 +1,26 @@
 /**
  * Family Planner API
- * Paste this whole file into Extensions > Apps Script in the
- * "Family Planner 2027 - Rany & Sombo" Google Sheet.
+ * Paste this whole file into an Apps Script project (Extensions > Apps Script
+ * in the sheet, or a new project at script.google.com). It opens the
+ * "Family Planner 2027 - Rany & Sombo" Google Sheet by its ID below.
  * Then follow the README to set your family PIN and deploy it as a web app.
  *
  * Every request must include the family PIN. The PIN is stored in
  * Project Settings > Script properties as FAMILY_PIN (never in this file).
  */
 
+// The Family Planner 2027 Google Sheet this app reads and writes.
+const SHEET_ID = '1mIqGDpQvVm2tjfseHwMfMSyVtu0h2YKTQK3z9il0alM';
+let ssCache_ = null;
+function ss_() {
+  if (!ssCache_) ssCache_ = SpreadsheetApp.openById(SHEET_ID);
+  return ssCache_;
+}
+
 // Dates are formatted in the spreadsheet's own time zone (Asia/Phnom_Penh).
 let tzCache_ = null;
 function tz_() {
-  if (!tzCache_) tzCache_ = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+  if (!tzCache_) tzCache_ = ss_().getSpreadsheetTimeZone();
   return tzCache_;
 }
 const MAX_FAILED_TRIES = 10;      // per 10 minutes, then requests are refused
@@ -63,7 +72,7 @@ function checkPin_(pin) {
 // ---------- reading ----------
 
 function getAll_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = ss_();
   const lists = ss.getSheetByName('Lists');
   const budget = ss.getSheetByName('Budget');
   const holidays = ss.getSheetByName('Public Holidays');
@@ -150,7 +159,7 @@ function updateRow_(d) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(d.sheet);
+    const sheet = ss_().getSheetByName(d.sheet);
     const row = Number(d.row);
     checkUnchanged_(sheet, row, d.origDate, d.origText);
     parts.forEach(p => sheet.getRange(row, p.col, 1, p.values.length).setValues([p.values]));
@@ -167,7 +176,7 @@ function deleteRow_(d) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(d.sheet);
+    const sheet = ss_().getSheetByName(d.sheet);
     const row = Number(d.row);
     checkUnchanged_(sheet, row, d.date, d.text);
     sheet.deleteRow(row);
@@ -181,7 +190,7 @@ function writeRow_(sheetName, parts) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+    const sheet = ss_().getSheetByName(sheetName);
     const row = lastDataRow_(sheet) + 1;
     if (row > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), 100);
     parts.forEach(p => sheet.getRange(row, p.col, 1, p.values.length).setValues([p.values]));

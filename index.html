@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1F3864">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Family Planner">
+  <title>Family Planner</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- PIN screen -->
+  <section id="login" class="login" hidden>
+    <div class="login-card">
+      <img src="icon.svg" alt="" class="login-icon">
+      <h1>Family Planner</h1>
+      <p class="muted">Enter your family PIN</p>
+      <form id="loginForm">
+        <input id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" placeholder="PIN" required>
+        <label class="check"><input type="checkbox" id="rememberPin" checked> Remember on this phone</label>
+        <button type="submit" class="btn primary">Open</button>
+        <p id="loginError" class="error" hidden></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- App -->
+  <div id="app" hidden>
+    <header class="topbar">
+      <div>
+        <div class="title" id="familyName">Family Planner</div>
+        <div class="month-switch">
+          <button class="icon-btn" id="prevMonth" aria-label="Previous month">&#8249;</button>
+          <span id="monthLabel"></span>
+          <button class="icon-btn" id="nextMonth" aria-label="Next month">&#8250;</button>
+        </div>
+      </div>
+      <button class="icon-btn" id="refreshBtn" aria-label="Refresh">&#8635;</button>
+    </header>
+    <div id="demoBanner" class="demo" hidden>Demo mode: sample data only. Add your Apps Script URL in config.js to use your sheet.</div>
+
+    <main id="view"></main>
+
+    <button id="fab" class="fab" aria-label="Add">+</button>
+
+    <nav class="tabs">
+      <button data-tab="home" class="active"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Home</button>
+      <button data-tab="calendar"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Calendar</button>
+      <button data-tab="spending"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M6 15h4"/></svg>Spending</button>
+      <button data-tab="income"><svg viewBox="0 0 24 24"><path d="M12 3v18M17 7.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2 2.7 5 3.3 5 1.6 5 3.6-2.2 3.1-5 3.1-5-1.2-5-3.1"/></svg>Income</button>
+      <button data-tab="budget"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Budget</button>
+    </nav>
+  </div>
+
+  <!-- Bottom sheet for forms and day details -->
+  <div id="sheetBackdrop" class="backdrop" hidden></div>
+  <section id="sheet" class="sheet" hidden></section>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -77,13 +77,16 @@ window.APP_CONFIG = {
 
 - **Home**: this month's budget, spending and what's left, the next 3 weeks of plans and holidays, and the latest spending.
 - **Calendar**: public holidays in red, plans coloured by category. Tap a day to see it or add a plan.
-- **Spending / Income**: tap the red **+** to add. You can enter amounts in **USD or riel**; riel is converted at the rate on the **Lists** tab of the sheet (cell F2). Tap ✕ to delete a wrong entry.
+- **Spending / Income**: tap the red **+** to add. You can enter amounts in **USD or riel**; riel is converted at the rate on the **Lists** tab of the sheet (cell F2). **Tap any entry to change it** (amount, category, date, note), or tap ✕ to delete it. Plans are changed the same way from the Calendar: tap a day, then tap the plan.
 - **Budget**: each category's spending against its monthly budget. Orange means 80% used; red means over budget.
 - Use the arrows at the top to change month, and **↻** to reload after someone else adds something.
 
 Budget amounts, categories, the exchange rate and holidays are changed **in the Google Sheet**; the app picks up the changes when you reload.
 
 ## When you change the script later
+
+The app uses `Code.gs` from this repository. If you set up Apps Script before editing was added, paste the new `Code.gs` in again and deploy a new version (below), or saving changes will show "Unknown action: updateRow".
+
 
 After editing `Code.gs`, click **Deploy → Manage deployments → ✎ Edit → Version: New version → Deploy**. The URL stays the same, so the app keeps working.
 

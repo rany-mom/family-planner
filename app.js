@@ -198,7 +198,7 @@
 
   function spendRow(s) {
     return `
-      <div class="row">
+      <div class="row tap" data-edit="Spending" data-row="${s.row}">
         <div class="datebox"><b>${parseIso(s.date).getDate()}</b><span>${weekday(s.date)}</span></div>
         <div class="main"><div class="name">${esc(s.item)}</div>
           <div class="sub">${esc([s.category, s.paidBy].filter(Boolean).join(" · "))}${s.note ? " · " + esc(s.note) : ""}</div></div>
@@ -215,7 +215,7 @@
         <h2>Spending in ${MONTHS[state.month]}</h2>
         ${list.length ? list.map(spendRow).join("") + `<div class="total-line"><span>Total</span><span>${usd(total)}</span></div>`
           : `<div class="empty">No spending yet. Tap + to add one.</div>`}
-      </div>`;
+      </div>` + (list.length ? `<p class="tap-hint">Tap an entry to change it.</p>` : "");
   }
 
   function viewIncome() {
@@ -225,7 +225,7 @@
       <div class="card">
         <h2>Income in ${MONTHS[state.month]}</h2>
         ${list.length ? list.map(s => `
-          <div class="row">
+          <div class="row tap" data-edit="Income" data-row="${s.row}">
             <div class="datebox"><b>${parseIso(s.date).getDate()}</b><span>${weekday(s.date)}</span></div>
             <div class="main"><div class="name">${esc(s.who)}</div><div class="sub">${esc(s.note || "")}</div></div>
             <div class="amt" style="color:var(--green)">${usd(toUsd(s.amount, s.currency))}${s.currency === "KHR" ? `<small>${original(s.amount, s.currency)}</small>` : ""}</div>
@@ -233,7 +233,7 @@
           </div>`).join("") + `<div class="total-line"><span>Total</span><span>${usd(total)}</span></div>`
           : `<div class="empty">No income added yet. Tap + to add a salary.</div>`}
         <div class="hint">Expected each month: ${usd0(state.data.expectedIncome)}</div>
-      </div>`;
+      </div>` + (list.length ? `<p class="tap-hint">Tap an entry to change it.</p>` : "");
   }
 
   function viewBudget() {
@@ -285,58 +285,87 @@
     return (t.getFullYear() === state.year && t.getMonth() === state.month) ? todayIso() : iso(state.year, state.month, 1);
   }
 
-  function formSpending() {
+  // A form opens empty to add, or filled in with an existing entry to edit it.
+  function formButtons(item) {
+    return `<div class="actions"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn add">${item ? "Save changes" : "Save"}</button></div>`;
+  }
+  function editAttrs(sheet, item, text) {
+    return item ? `data-sheet="${sheet}" data-row="${item.row}" data-orig-date="${esc(item.date)}" data-orig-text="${esc(text)}"` : "";
+  }
+  function currencyField(current) {
+    const c = current === "KHR" ? "KHR" : "USD";
+    return `<div class="field"><label>Currency</label>
+      <div class="seg" data-seg="currency"><button type="button" class="${c === "USD" ? "on" : ""}" data-v="USD">USD $</button><button type="button" class="${c === "KHR" ? "on" : ""}" data-v="KHR">KHR ៛</button></div>
+      <input type="hidden" name="currency" value="${c}"></div>`;
+  }
+  const val = (v) => esc(v === undefined || v === null ? "" : v);
+
+  function formSpending(item) {
     const cats = state.data.budget.map(b => b.category);
+    const list = [...cats];
+    if (item && item.category && !list.includes(item.category)) list.push(item.category);
+    list.push("Other");
+    const selected = item ? (item.category || "Other") : (cats.includes("Food") ? "Food" : cats[0]);
     openSheet(`
-      <h3>Add spending</h3>
-      <form id="form" data-kind="addSpending">
-        <div class="field"><label>What did you buy?</label><input name="item" required maxlength="120" placeholder="e.g. Market food"></div>
+      <h3>${item ? "Edit spending" : "Add spending"}</h3>
+      <form id="form" data-kind="${item ? "updateRow" : "addSpending"}" ${editAttrs("Spending", item, item && item.item)}>
+        <div class="field"><label>What did you buy?</label><input name="item" required maxlength="120" placeholder="e.g. Market food" value="${val(item && item.item)}"></div>
         <div class="two">
-          <div class="field"><label>Amount</label><input name="amount" required inputmode="decimal" placeholder="0"></div>
-          <div class="field"><label>Currency</label>
-            <div class="seg" data-seg="currency"><button type="button" class="on" data-v="USD">USD $</button><button type="button" data-v="KHR">KHR ៛</button></div>
-            <input type="hidden" name="currency" value="USD"></div>
+          <div class="field"><label>Amount</label><input name="amount" required inputmode="decimal" placeholder="0" value="${val(item && item.amount)}"></div>
+          ${currencyField(item && item.currency)}
         </div>
-        <div class="field"><label>Category</label><select name="category">${options([...cats, "Other"], cats.includes("Food") ? "Food" : cats[0])}</select></div>
+        <div class="field"><label>Category</label><select name="category">${options(list, selected)}</select></div>
         <div class="two">
-          <div class="field"><label>Date</label><input type="date" name="date" value="${defaultDate()}" required></div>
-          <div class="field"><label>Paid by</label><select name="paidBy">${options(peopleAdults(), "")}</select></div>
+          <div class="field"><label>Date</label><input type="date" name="date" value="${item ? item.date : defaultDate()}" required></div>
+          <div class="field"><label>Paid by</label><select name="paidBy">${options(withValue(peopleAdults(), item && item.paidBy), item ? item.paidBy : "")}</select></div>
         </div>
-        <div class="field"><label>Note (optional)</label><input name="note" maxlength="200"></div>
-        <div class="actions"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn add">Save</button></div>
+        <div class="field"><label>Note (optional)</label><input name="note" maxlength="200" value="${val(item && item.note)}"></div>
+        ${formButtons(item)}
       </form>`);
   }
 
-  function formIncome() {
+  function formIncome(item) {
     openSheet(`
-      <h3>Add income</h3>
-      <form id="form" data-kind="addIncome">
-        <div class="field"><label>Who</label><select name="who">${options(peopleAdults(), "")}</select></div>
+      <h3>${item ? "Edit income" : "Add income"}</h3>
+      <form id="form" data-kind="${item ? "updateRow" : "addIncome"}" ${editAttrs("Income", item, item && item.who)}>
+        <div class="field"><label>Who</label><select name="who">${options(withValue(peopleAdults(), item && item.who), item ? item.who : "")}</select></div>
         <div class="two">
-          <div class="field"><label>Amount</label><input name="amount" required inputmode="decimal" placeholder="0"></div>
-          <div class="field"><label>Currency</label>
-            <div class="seg" data-seg="currency"><button type="button" class="on" data-v="USD">USD $</button><button type="button" data-v="KHR">KHR ៛</button></div>
-            <input type="hidden" name="currency" value="USD"></div>
+          <div class="field"><label>Amount</label><input name="amount" required inputmode="decimal" placeholder="0" value="${val(item && item.amount)}"></div>
+          ${currencyField(item && item.currency)}
         </div>
-        <div class="field"><label>Date</label><input type="date" name="date" value="${defaultDate()}" required></div>
-        <div class="field"><label>Note (optional)</label><input name="note" maxlength="200" placeholder="e.g. 1st salary"></div>
-        <div class="actions"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn add">Save</button></div>
+        <div class="field"><label>Date</label><input type="date" name="date" value="${item ? item.date : defaultDate()}" required></div>
+        <div class="field"><label>Note (optional)</label><input name="note" maxlength="200" placeholder="e.g. 1st salary" value="${val(item && item.note)}"></div>
+        ${formButtons(item)}
       </form>`);
   }
 
-  function formPlan(date) {
+  function formPlan(date, item) {
     openSheet(`
-      <h3>Add plan</h3>
-      <form id="form" data-kind="addPlan">
-        <div class="field"><label>Plan</label><input name="plan" required maxlength="120" placeholder="e.g. Family trip to Kampot"></div>
-        <div class="field"><label>Date</label><input type="date" name="date" value="${date || defaultDate()}" required></div>
+      <h3>${item ? "Edit plan" : "Add plan"}</h3>
+      <form id="form" data-kind="${item ? "updateRow" : "addPlan"}" ${editAttrs("Plans", item, item && item.plan)}>
+        <div class="field"><label>Plan</label><input name="plan" required maxlength="120" placeholder="e.g. Family trip to Kampot" value="${val(item && item.plan)}"></div>
+        <div class="field"><label>Date</label><input type="date" name="date" value="${item ? item.date : (date || defaultDate())}" required></div>
         <div class="two">
-          <div class="field"><label>Category</label><select name="category">${options(state.data.planCategories, "Family")}</select></div>
-          <div class="field"><label>Who</label><select name="who">${options(state.data.people, "Family")}</select></div>
+          <div class="field"><label>Category</label><select name="category">${options(withValue(state.data.planCategories, item && item.category), item ? item.category : "Family")}</select></div>
+          <div class="field"><label>Who</label><select name="who">${options(withValue(state.data.people, item && item.who), item ? item.who : "Family")}</select></div>
         </div>
-        <div class="field"><label>Notes (optional)</label><textarea name="notes" maxlength="400"></textarea></div>
-        <div class="actions"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn add">Save</button></div>
+        <div class="field"><label>Notes (optional)</label><textarea name="notes" maxlength="400">${val(item && item.notes)}</textarea></div>
+        ${formButtons(item)}
       </form>`);
+  }
+
+  /** Keeps an existing value selectable even if it is no longer in the list. */
+  function withValue(list, v) {
+    return v && !list.includes(v) ? [...list, v] : list;
+  }
+
+  function editItem(sheet, row) {
+    const list = { Spending: state.data.spending, Income: state.data.income, Plans: state.data.plans }[sheet];
+    const item = list.find(x => x.row === row);
+    if (!item) return;
+    if (sheet === "Spending") formSpending(item);
+    else if (sheet === "Income") formIncome(item);
+    else formPlan(item.date, item);
   }
 
   function peopleAdults() {
@@ -352,7 +381,7 @@
       <h3>${weekday(date)} ${d.getDate()} ${MONTHS[d.getMonth()]}</h3>
       ${hol ? `<div class="row"><div class="datebox holiday"><b>${d.getDate()}</b><span>${weekday(date)}</span></div><div class="main"><div class="name">${esc(hol.name)}</div><div class="sub">Public holiday</div></div></div>` : ""}
       ${plans.map(p => `
-        <div class="row">
+        <div class="row tap" data-edit="Plans" data-row="${p.row}">
           <span class="chip ${catClass(p.category)}">${esc(p.category || "Plan")}</span>
           <div class="main"><div class="name">${esc(p.plan)}</div><div class="sub">${esc([p.who, p.notes].filter(Boolean).join(" · "))}</div></div>
           <button class="del" data-del="Plans" data-row="${p.row}" aria-label="Delete">✕</button>
@@ -365,6 +394,10 @@
   async function submitForm(form) {
     const kind = form.dataset.kind;
     const data = Object.fromEntries(new FormData(form).entries());
+    if (kind === "updateRow") {
+      Object.assign(data, { sheet: form.dataset.sheet, row: Number(form.dataset.row),
+        origDate: form.dataset.origDate, origText: form.dataset.origText });
+    }
     if (data.amount !== undefined) {
       const n = Number(String(data.amount).replace(/,/g, ""));
       if (!(n > 0)) { toast("Please enter an amount above 0."); return; }
@@ -372,6 +405,7 @@
     }
     if (data.category === "Other") data.category = "";
     const btn = form.querySelector("button.add");
+    const label = btn.textContent;
     btn.disabled = true; btn.textContent = "Saving…";
     try {
       await api(kind, data);
@@ -379,7 +413,7 @@
       toast("Saved");
       await loadAll();
     } catch (err) {
-      btn.disabled = false; btn.textContent = "Save";
+      btn.disabled = false; btn.textContent = label;
       toast(err.message);
     }
   }
@@ -431,6 +465,8 @@
       if (day && !day.disabled) { state.selectedDay = day.dataset.day; render(); dayDetails(day.dataset.day); return; }
       const del = e.target.closest("[data-del]");
       if (del) { deleteItem(del.dataset.del, Number(del.dataset.row)); return; }
+      const edit = e.target.closest("[data-edit]");
+      if (edit) { editItem(edit.dataset.edit, Number(edit.dataset.row)); return; }
       if (e.target.closest("[data-close]")) { closeSheet(); return; }
       const addPlan = e.target.closest("[data-addplan]");
       if (addPlan) { formPlan(addPlan.dataset.addplan); return; }
@@ -487,6 +523,12 @@
     if (action === "addPlan") demo.plans.push({ row: ++demoRow, ...data });
     if (action === "addSpending") demo.spending.push({ row: ++demoRow, ...data });
     if (action === "addIncome") demo.income.push({ row: ++demoRow, ...data });
+    if (action === "updateRow") {
+      const key = { Plans: "plans", Spending: "spending", Income: "income" }[data.sheet];
+      const i = demo[key].findIndex(x => x.row === data.row);
+      const { sheet, origDate, origText, ...fields } = data;
+      if (i >= 0) demo[key][i] = { ...demo[key][i], ...fields };
+    }
     if (action === "deleteRow") {
       const key = { Plans: "plans", Spending: "spending", Income: "income" }[data.sheet];
       demo[key] = demo[key].filter(x => x.row !== data.row);

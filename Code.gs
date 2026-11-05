@@ -35,6 +35,7 @@ function doPost(e) {
       case 'addPlan':    return json_({ ok: true, row: addPlan_(data) });
       case 'addSpending':return json_({ ok: true, row: addSpending_(data) });
       case 'addIncome':  return json_({ ok: true, row: addIncome_(data) });
+      case 'updateRow':  return json_({ ok: true, updated: updateRow_(data) });
       case 'deleteRow':  return json_({ ok: true, deleted: deleteRow_(data) });
       default: throw new Error('Unknown action: ' + action);
     }
@@ -106,29 +107,57 @@ function colValues_(sheet, col) {
 
 // ---------- writing ----------
 
-function addPlan_(d) {
-  requireFields_(d, ['date', 'plan']);
-  return writeRow_('Plans', [
-    { col: 1, values: [parseDate_(d.date), clean_(d.plan), clean_(d.category), clean_(d.who), clean_(d.notes)] },
-  ]);
+/** Which cells each kind of entry fills. Formula columns (Amount USD) are skipped. */
+function partsFor_(sheetName, d) {
+  if (sheetName === 'Plans') {
+    requireFields_(d, ['date', 'plan']);
+    return [{ col: 1, values: [parseDate_(d.date), clean_(d.plan), clean_(d.category), clean_(d.who), clean_(d.notes)] }];
+  }
+  if (sheetName === 'Spending') {
+    requireFields_(d, ['date', 'item', 'amount']);
+    return [
+      { col: 1, values: [parseDate_(d.date), clean_(d.item), clean_(d.category), toNumber_(d.amount), currency_(d.currency)] },
+      { col: 7, values: [clean_(d.paidBy), clean_(d.note)] },
+    ];
+  }
+  if (sheetName === 'Income') {
+    requireFields_(d, ['date', 'who', 'amount']);
+    return [
+      { col: 1, values: [parseDate_(d.date), clean_(d.who), toNumber_(d.amount), currency_(d.currency)] },
+      { col: 6, values: [clean_(d.note)] },
+    ];
+  }
+  throw new Error('Cannot change ' + sheetName);
 }
 
-function addSpending_(d) {
-  requireFields_(d, ['date', 'item', 'amount']);
-  // Column F (Amount USD) is a formula in the sheet, so it is skipped.
-  return writeRow_('Spending', [
-    { col: 1, values: [parseDate_(d.date), clean_(d.item), clean_(d.category), toNumber_(d.amount), currency_(d.currency)] },
-    { col: 7, values: [clean_(d.paidBy), clean_(d.note)] },
-  ]);
+function addPlan_(d)     { return writeRow_('Plans', partsFor_('Plans', d)); }
+function addSpending_(d) { return writeRow_('Spending', partsFor_('Spending', d)); }
+function addIncome_(d)   { return writeRow_('Income', partsFor_('Income', d)); }
+
+/** Throws unless the row's date and first text cell still match what the app showed. */
+function checkUnchanged_(sheet, row, date, text) {
+  if (!(row >= 2)) throw new Error('Bad row');
+  const cells = sheet.getRange(row, 1, 1, 2).getValues()[0];
+  const cellDate = cells[0] instanceof Date ? fmt_(cells[0]) : String(cells[0]);
+  if (cellDate !== String(date) || String(cells[1]) !== String(text)) {
+    throw new Error('This entry changed in the sheet. Refresh and try again.');
+  }
 }
 
-function addIncome_(d) {
-  requireFields_(d, ['date', 'who', 'amount']);
-  // Column E (Amount USD) is a formula in the sheet, so it is skipped.
-  return writeRow_('Income', [
-    { col: 1, values: [parseDate_(d.date), clean_(d.who), toNumber_(d.amount), currency_(d.currency)] },
-    { col: 6, values: [clean_(d.note)] },
-  ]);
+/** Changes an existing row in place (same row, so nothing else moves). */
+function updateRow_(d) {
+  const parts = partsFor_(d.sheet, d);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(d.sheet);
+    const row = Number(d.row);
+    checkUnchanged_(sheet, row, d.origDate, d.origText);
+    parts.forEach(p => sheet.getRange(row, p.col, 1, p.values.length).setValues([p.values]));
+    return true;
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /** Deletes a row only if its first two cells still match what the app showed. */
@@ -140,12 +169,7 @@ function deleteRow_(d) {
   try {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(d.sheet);
     const row = Number(d.row);
-    if (!(row >= 2)) throw new Error('Bad row');
-    const cells = sheet.getRange(row, 1, 1, 2).getValues()[0];
-    const date = cells[0] instanceof Date ? fmt_(cells[0]) : String(cells[0]);
-    if (date !== String(d.date) || String(cells[1]) !== String(d.text)) {
-      throw new Error('This entry changed in the sheet. Refresh and try again.');
-    }
+    checkUnchanged_(sheet, row, d.date, d.text);
     sheet.deleteRow(row);
     return true;
   } finally {
